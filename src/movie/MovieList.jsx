@@ -14,8 +14,6 @@ const MovieList = ({ query }) => {
     const fetchPageMovies = useCallback(
         async (page) => {
             setLoading(true);
-            // 요청 전에 1초 대기
-            await new Promise((resolve) => setTimeout(resolve, 1000));
             const data = await fetchMovies(query, page);
             if (data.Response === 'True') {
                 setMovies((prevMovies) => [...prevMovies, ...data.Search]);
@@ -27,9 +25,11 @@ const MovieList = ({ query }) => {
     );
 
     useEffect(() => {
-        setMovies([]);
-        setCurrentPage(1);
-        fetchPageMovies(1);
+        if (query) {
+            setMovies([]);
+            setCurrentPage(1);
+            fetchPageMovies(1);
+        }
     }, [query, fetchPageMovies]);
 
     useEffect(() => {
@@ -72,11 +72,17 @@ const MovieList = ({ query }) => {
                     {movies.map((movie) => (
                         <MovieCard key={movie.imdbID} movie={movie} />
                     ))}
-                    {loading && Array.from({ length: 10 }).map((_, index) => <SkeletonLoader key={index} />)}
                 </div>
-                {loading && (
+                {loading && movies.length > 0 && (
                     <div className='flex justify-center items-center h-20'>
                         <ClipLoader color='#4A90E2' loading={loading} size={50} />
+                    </div>
+                )}
+                {loading && movies.length === 0 && (
+                    <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6'>
+                        {Array.from({ length: 10 }).map((_, index) => (
+                            <SkeletonLoader key={index} />
+                        ))}
                     </div>
                 )}
                 <div ref={observerRef} className='h-10'></div>
