@@ -1,81 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MovieCard from './MovieCard';
+import SkeletonLoader from '../components/SkeletonLoader';
 import { fetchMovies } from '../api/movieGet';
 import { ClipLoader } from 'react-spinners';
 
-const MovieList = ({ movies, totalResults, loading, query }) => {
+const MovieList = ({ query }) => {
     const [currentPage, setCurrentPage] = useState(1);
-    const [currentMovies, setCurrentMovies] = useState([]);
-    const moviesPerPage = 10;
-    const pagesPerBatch = 10;
+    const [movies, setMovies] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [totalResults, setTotalResults] = useState(0);
+    const observerRef = useRef(null);
+
+    const fetchPageMovies = useCallback(
+        async (page) => {
+            setLoading(true);
+            // 요청 전에 1초 대기
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const data = await fetchMovies(query, page);
+            if (data.Response === 'True') {
+                setMovies((prevMovies) => [...prevMovies, ...data.Search]);
+                setTotalResults(data.totalResults);
+            }
+            setLoading(false);
+        },
+        [query]
+    );
 
     useEffect(() => {
-        const fetchPageMovies = async () => {
-            const data = await fetchMovies(query, currentPage);
-            if (data.Response === 'True') {
-                setCurrentMovies(data.Search);
+        setMovies([]);
+        setCurrentPage(1);
+        fetchPageMovies(1);
+    }, [query, fetchPageMovies]);
+
+    useEffect(() => {
+        if (currentPage > 1) {
+            fetchPageMovies(currentPage);
+        }
+    }, [currentPage, fetchPageMovies]);
+
+    const handleObserver = useCallback(
+        (entries) => {
+            const target = entries[0];
+            if (target.isIntersecting && !loading && movies.length < totalResults) {
+                setCurrentPage((prevPage) => prevPage + 1);
             }
-        };
-        fetchPageMovies();
-    }, [query, currentPage]);
-
-    const totalPages = Math.ceil(totalResults / moviesPerPage);
-    const currentBatch = Math.ceil(currentPage / pagesPerBatch);
-    const startPage = (currentBatch - 1) * pagesPerBatch + 1;
-    const endPage = Math.min(startPage + pagesPerBatch - 1, totalPages);
-
-    const handlePageChange = (page) => {
-        setCurrentPage(page);
-    };
-
-    const renderPagination = () => (
-        <div className='flex justify-center mt-6'>
-            {startPage > 1 && (
-                <button
-                    className='p-2 mx-1 bg-gray-300 text-gray-700 rounded-md hover:bg-blue-600 hover:text-white'
-                    onClick={() => handlePageChange(startPage - pagesPerBatch)}
-                >
-                    &laquo;
-                </button>
-            )}
-            {Array.from({ length: endPage - startPage + 1 }, (_, index) => (
-                <button
-                    key={startPage + index}
-                    className={`p-2 mx-1 ${
-                        currentPage === startPage + index ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-700'
-                    } rounded-md hover:bg-blue-600 hover:text-white`}
-                    onClick={() => handlePageChange(startPage + index)}
-                >
-                    {startPage + index}
-                </button>
-            ))}
-            {endPage < totalPages && (
-                <button
-                    className='p-2 mx-1 bg-gray-300 text-gray-700 rounded-md hover:bg-blue-600 hover:text-white'
-                    onClick={() => handlePageChange(startPage + pagesPerBatch)}
-                >
-                    &raquo;
-                </button>
-            )}
-        </div>
+        },
+        [loading, movies.length, totalResults]
     );
+
+    useEffect(() => {
+        const option = {
+            root: null,
+            rootMargin: '20px',
+            threshold: 1.0,
+        };
+
+        const observer = new IntersectionObserver(handleObserver, option);
+
+        const currentObserverRef = observerRef.current;
+        if (currentObserverRef) observer.observe(currentObserverRef);
+
+        return () => {
+            if (currentObserverRef) observer.unobserve(currentObserverRef);
+        };
+    }, [handleObserver]);
 
     return (
         <div className='p-4 pt-24 bg-gradient-to-b from-blue-100 via-purple-100 to-pink-100 min-h-screen'>
-            {loading ? (
-                <div className='flex justify-center items-center h-screen'>
-                    <ClipLoader color='#4A90E2' loading={loading} size={150} />
+            <>
+                <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6'>
+                    {movies.map((movie) => (
+                        <MovieCard key={movie.imdbID} movie={movie} />
+                    ))}
+                    {loading && Array.from({ length: 10 }).map((_, index) => <SkeletonLoader key={index} />)}
                 </div>
-            ) : (
-                <>
-                    <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6'>
-                        {currentMovies.map((movie) => (
-                            <MovieCard key={movie.imdbID} movie={movie} />
-                        ))}
+                {loading && (
+                    <div className='flex justify-center items-center h-20'>
+                        <ClipLoader color='#4A90E2' loading={loading} size={50} />
                     </div>
-                    {totalPages > 1 && renderPagination()}
-                </>
-            )}
+                )}
+                <div ref={observerRef} className='h-10'></div>
+            </>
         </div>
     );
 };

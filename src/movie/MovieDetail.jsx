@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ClipLoader } from 'react-spinners';
-import { API_KEY } from '../api/movieGet';
+import { fetchMovieDetail } from '../api/movieGet';
 
 const MovieDetail = () => {
     const { id } = useParams();
@@ -10,12 +10,10 @@ const MovieDetail = () => {
 
     useEffect(() => {
         const getMovie = async () => {
-            const response = await fetch(`https://www.omdbapi.com/?apikey=${API_KEY}&i=${id}`);
-            const data = await response.json();
+            const data = await fetchMovieDetail(id);
             setMovie(data);
             setLoading(false);
         };
-
         getMovie();
     }, [id]);
 
